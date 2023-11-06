@@ -63,17 +63,33 @@ locs <- cbind(locs, data)
 dac_codes <- read.csv("https://raw.githubusercontent.com/datasets/dac-and-crs-code-lists/main/data/sectors.csv")
 index <- match(locs$DAC.5.Purpose.Code, dac_codes$code)
 locs$DAC.5.Name <- dac_codes$name_en[index]
+locs <- cbind(locs, west_africa[["name_en"]][as.numeric(st_within(locs, west_africa))])
+names(locs)[33] <- "country"
+locs$count <- 1
 
 # write to disk
 st_write(locs, file.path(outdir, "project_locations.gpkg"), delete_dsn = TRUE)
 # locs <- st_read(file.path(outdir, "project_locations.gpkg"))
 
 # simulate data
-set.seed(42)
-locs_sim <- st_as_sf(st_sample(west_africa, size = 5000))
+locs_buffer <- st_buffer(locs, dist = 20000)
+locs_sim <- st_as_sf(st_sample(locs_buffer, size = rep(1, nrow(locs))))
 
 data <- extract(tifs, locs_sim, ID = FALSE)
 locs_sim <- cbind(locs_sim, data)
 locs_sim <- cbind(locs_sim, west_africa[["name_en"]][as.numeric(st_within(locs_sim, west_africa))])
 names(locs_sim)[5] <- "country"
+locs_sim$count <- 1
+
+# sample DAC5 Codes
+unique_dacs <- unique(locs[["DAC.5.Name"]])
+locs_sim$DAC5 <- sample(unique_dacs, size = nrow(locs), replace = TRUE)
+# sample IATI type
+unique_iati <- unique(locs[["Location.Type.IATI"]])
+locs_sim$IATI <- sample(unique_iati, size = nrow(locs), replace = TRUE)
+
+locs_sim <- locs_sim[ ,c("country", "DAC5", "IATI", "conflict_class",
+                         "conflict_density", "fatalitites_class",
+                         "fatalitites_density", "count")]
+
 st_write(locs_sim, file.path(outdir, "sim_project_locations.gpkg"), delete_dsn = TRUE)
